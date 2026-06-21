@@ -84,7 +84,7 @@ export const getBasicSurveyMetadata = async (
 
   if (!titleFromMetadata) {
     if (IS_FORMBRICKS_CLOUD) {
-      title = `${title} | Formbricks`;
+      title = `${title} | Artha Forms`;
     }
   }
 

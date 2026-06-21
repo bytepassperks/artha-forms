@@ -307,7 +307,7 @@ export const generatePersonalLinksAction = authenticatedActionClient
 
     // Prepare CSV data with the specified headers and order
     const csvHeaders = [
-      "Formbricks Contact ID",
+      "Artha Forms Contact ID",
       "User ID",
       "First Name",
       "Last Name",
@@ -322,7 +322,7 @@ export const generatePersonalLinksAction = authenticatedActionClient
         }
         const attributes = contact.attributes ?? {};
         return {
-          "Formbricks Contact ID": contact.contactId,
+          "Artha Forms Contact ID": contact.contactId,
           "User ID": attributes.userId ?? "",
           "First Name": attributes.firstName ?? "",
           "Last Name": attributes.lastName ?? "",

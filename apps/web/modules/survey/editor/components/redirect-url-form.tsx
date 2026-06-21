@@ -80,7 +80,7 @@ export const RedirectUrlForm = ({ localSurvey, endingCard, updateSurvey }: Redir
           id="redirectUrlLabel"
           name="redirectUrlLabel"
           className="bg-white"
-          placeholder="Formbricks App"
+          placeholder="Artha Forms App"
           value={endingCard.label ?? ""}
           onChange={(e) => updateSurvey({ label: e.target.value })}
         />
