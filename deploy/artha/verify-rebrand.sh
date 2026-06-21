@@ -1,53 +1,45 @@
 #!/usr/bin/env bash
-# Asserts the Artha Forms white-label layer is intact in the working tree.
+# Universal Artha rebrand quality gate.
 #
-# Run after merging upstream Formbricks commits: if upstream overwrote any
-# branded file (or reintroduced a user-visible "Formbricks" string), an
-# assertion fails LOUDLY here so the pipeline stops instead of shipping a
-# half-branded build. Exit 0 = rebrand intact.
+# Asserts the thin Artha white-label layer survived an upstream merge. The
+# per-module rules live in deploy/artha/deploy.conf as two arrays:
+#
+#   REBRAND_REQUIRE=( "path|grep-pattern|description" ... )   # must be present
+#   REBRAND_FORBID=(  "path|grep-pattern|description" ... )   # must be absent
+#
+# grep patterns are matched as fixed strings (grep -F). A missing file is a
+# failure for REQUIRE and a pass for FORBID. Exits non-zero (failing the gate,
+# aborting the deploy) on the first violation.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 cd "$ROOT"
+# shellcheck disable=SC1090
+. "$HERE/deploy.conf"
 
 fail=0
-need() {
-  # need <file> <grep-pattern> <human description>
-  local file="$1" pat="$2" desc="$3"
-  if [ ! -f "$file" ]; then
-    printf ' !! MISSING FILE: %s (%s)\n' "$file" "$desc" >&2; fail=1; return
-  fi
-  if ! grep -qF "$pat" "$file"; then
-    printf ' !! REBRAND DRIFT: %s no longer contains "%s" (%s)\n' "$file" "$pat" "$desc" >&2; fail=1
-  fi
-}
-forbid_count() {
-  # forbid_count <file> <forbidden-pattern> <human description>
-  # fails if the forbidden token appears in a user-visible strings file
-  local file="$1" pat="$2" desc="$3"
-  [ -f "$file" ] || return 0
-  local n; n="$(grep -cF "$pat" "$file" || true)"
-  if [ "$n" -ne 0 ]; then
-    printf ' !! LEAK: %s contains %s user-visible "%s" string(s) (%s)\n' "$file" "$n" "$pat" "$desc" >&2; fail=1
-  fi
-}
+ok()   { printf '  ok   %s\n' "$*"; }
+bad()  { printf '  FAIL %s\n' "$*" >&2; fail=1; }
 
-# ── Brand identity must be present ────────────────────────────────────────────
-need "apps/web/app/layout.tsx"            'Artha Forms'  "HTML <title> / metadata"
-need "apps/web/modules/email/index.tsx"   'Artha Forms'  "transactional email from-name"
-need "apps/web/locales/en-US.json"        'Artha Forms'  "English UI strings"
+echo "== verify-rebrand: ${MODULE_NAME:-module} =="
 
-# ── No upstream brand may leak into the user-visible string catalogues ────────
-for loc in apps/web/locales/*.json; do
-  forbid_count "$loc" 'Formbricks' "locale $(basename "$loc")"
+for entry in "${REBRAND_REQUIRE[@]:-}"; do
+  [ -n "$entry" ] || continue
+  file="${entry%%|*}"; rest="${entry#*|}"; pat="${rest%%|*}"; desc="${rest#*|}"
+  if [ ! -f "$file" ]; then bad "[require] missing file: $file ($desc)"; continue; fi
+  if grep -qF -- "$pat" "$file"; then ok "[require] $desc"; else bad "[require] '$pat' not in $file ($desc)"; fi
 done
 
-# ── Deploy plumbing the slug build depends on ─────────────────────────────────
-need "deploy/artha/build-slug.sh" 'next.config' "slug assembler"
+for entry in "${REBRAND_FORBID[@]:-}"; do
+  [ -n "$entry" ] || continue
+  file="${entry%%|*}"; rest="${entry#*|}"; pat="${rest%%|*}"; desc="${rest#*|}"
+  if [ ! -f "$file" ]; then ok "[forbid] $desc (file absent)"; continue; fi
+  if grep -qF -- "$pat" "$file"; then bad "[forbid] '$pat' leaked into $file ($desc)"; else ok "[forbid] $desc"; fi
+done
 
 if [ "$fail" -ne 0 ]; then
-  printf '\n !! Rebrand verification FAILED — re-apply the Artha Forms rebrand layer before shipping. Production untouched.\n' >&2
+  echo "== verify-rebrand FAILED — rebrand drifted, deploy aborted ==" >&2
   exit 1
 fi
-printf '==> rebrand verification OK — Artha Forms branding intact, no user-visible Formbricks leaks.\n'
+echo "== verify-rebrand passed =="
